@@ -1,0 +1,56 @@
+name: Build exe
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'dist/**'
+      - '*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'ga'
+
+      - name: Publish single-file exe
+        shell: pwsh
+        run: >
+          dotnet publish TmcSklad.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:DebugType=none
+          -o publish
+
+      - name: Copy exe to dist
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item publish\TmcSklad.exe dist\TmcSklad.exe -Force
+          (Get-Item dist\TmcSklad.exe).Length / 1MB
+
+      - name: Commit exe to repository
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f dist/TmcSklad.exe
+          if (git status --porcelain dist) {
+            git commit -m "Сборка TmcSklad.exe [skip ci]"
+            git push
+          } else { Write-Host "exe не изменился" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TmcSklad
+          path: dist/TmcSklad.exe
